@@ -22,6 +22,10 @@ main = start game
 -- which stand for N,E,S,W respectively
 rotateRight d = (d+1) `mod` 4
 rotateLeft d = (d+3) `mod` 4
+rotate n d = let makePos d' = if d' >= 0
+                              then d'
+                              else d' + 4
+             in makePos $ (d + n ) `mod` 4
 --instance Eq Direction 
 --where (Direction a b = 
 
@@ -30,6 +34,9 @@ data Robot = Robot { rcoords :: (Int,Int)
 
 -- Game state consists of list of robots and their positions.
 data Game = Game { bots :: Var [Robot] }
+
+robonames = ["spunky","bimbot"]
+startpos = [(4,5), (7,8)]
 
 moveBot vrobo n = do robo <- varGet vrobo
                      varSet vrobo ( move n robo)
@@ -40,27 +47,40 @@ moveBot vrobo n = do robo <- varGet vrobo
                                | d == 3 = (Robot (x-n,y) d)
                                           
 rotateBot vrobo n = do (Robot pos dir) <- varGet vrobo
-                       varSet vrobo (Robot pos (rotateLeft dir))
+                       varSet vrobo (Robot pos (rotate n dir))
+  {-| n > 0 = do (Robot pos dir) <- varGet vrobo
+                               varSet vrobo (Robot pos (rotateLeft dir))
+                  | n < 0 = do (Robot pos dir) <- varGet vrobo
+                               varSet vrobo (Robot pos (rotateRight dir)) -}
 
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
 
 game = do f <- frameFixed [text := "Boro Larry"]
-          vrobo <- varCreate (Robot (4,5) 0)
-          p <- panel f [on paint := drawGame vrobo]
+          robo <- varCreate (Robot (4,5) 0)
+          p <- panel f [on paint := drawGame [robo] ]
           set f [ layout := minsize (sz maxX maxY) $ widget p]
-          set p [ on (charKey 'f') := (moveBot vrobo 1) >> repaint p 
-                , on (charKey 'r') := rotateBot vrobo 1]
+          set p [ on (charKey 'f') := (moveBot robo 1) >> repaint p
+                , on (charKey 'b') := (moveBot robo (-1)) >> repaint p
+                , on (charKey 'r') := (rotateBot robo 1) >> repaint p
+                , on (charKey 't') := (rotateBot robo (-1)) >> repaint p]
 
-drawGame vrobo dc viewArea
+-- From the names in 'robonames' generate a list of lists with their sprites:
+-- [ [spunky0.png,spunky1.png,...,spunky3.png], [bimbot0.png, ....]]
+loadBitmaps 
+  = sequence ( do roboname <- robonames
+                  return ( mapM (\x -> bitmapCreateFromFile ( "./img/" ++ roboname ++ (show x) ++ ".png")) [0..3]))
+    
+drawBot dc robo = let screencoords = (makeCoord (rcoords robo))
+                  in do bs <- loadBitmaps
+                        drawBitmap dc ((bs !! 0) !! (direction robo)) screencoords True []
+
+bitmaps = do roboimg <- bitmapCreateFromFile("./Robo.png")
+             return [roboimg]
+
+drawGame vrobos dc viewArea 
   = do set dc [brushColor := black, brushKind := BrushSolid]
-       robo <- varGet vrobo
        tile <- bitmapCreateFromFile("./tile.png")
        mapM_ (\p -> drawBitmap dc tile p False []) coords
-       roboimg <- bitmapCreateFromFile("./Robo.png")
-       drawBitmap dc roboimg (makeCoord (rcoords robo)) True []
-          
-hello :: IO ()
-hello = do f <- frame [text := "Hi!"]
-           quit <- button f [text := "Tschüß", on command := close f]
-           set f [layout := margin 10 (column 5 [floatCentre (label "QuatschSoft 2011")
-                                                ,floatCentre (widget quit)])]
+       sequence_ (do vrobo <- vrobos
+                     return (do robo <- varGet vrobo
+                                drawBot dc robo))
