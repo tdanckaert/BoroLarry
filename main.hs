@@ -1,6 +1,7 @@
 import Graphics.UI.WX
 import Graphics.UI.WXCore.Image
 import Data.List
+import Control.Monad
 import IO
 
 radius, maxX,maxY :: Int
@@ -56,13 +57,14 @@ rotateBot vrobo n = do (Robot pos dir) <- varGet vrobo
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
 
 game = do f <- frameFixed [text := "Boro Larry"]
-          robo <- varCreate (Robot (4,5) 0)
-          p <- panel f [on paint := drawGame [robo] ]
+--          robo <- varCreate (Robot (4,5) 0)
+          robos <- mapM (\p -> varCreate (Robot p 0)) startpos
+          p <- panel f [on paint := drawGame robos ]
           set f [ layout := minsize (sz maxX maxY) $ widget p]
-          set p [ on (charKey 'f') := (moveBot robo 1) >> repaint p
-                , on (charKey 'b') := (moveBot robo (-1)) >> repaint p
-                , on (charKey 'r') := (rotateBot robo 1) >> repaint p
-                , on (charKey 't') := (rotateBot robo (-1)) >> repaint p]
+          set p [ on (charKey 'f') := (moveBot (robos !! 0) 1) >> repaint p
+                , on (charKey 'b') := (moveBot (robos !! 0) (-1)) >> repaint p
+                , on (charKey 'r') := (rotateBot (robos !! 0) 1) >> repaint p
+                , on (charKey 't') := (rotateBot (robos !! 0) (-1)) >> repaint p]
 
 -- From the names in 'robonames' generate a list of lists with their sprites:
 -- [ [spunky0.png,spunky1.png,...,spunky3.png], [bimbot0.png, ....]]
@@ -70,17 +72,13 @@ loadBitmaps
   = sequence ( do roboname <- robonames
                   return ( mapM (\x -> bitmapCreateFromFile ( "./img/" ++ roboname ++ (show x) ++ ".png")) [0..3]))
     
-drawBot dc robo = let screencoords = (makeCoord (rcoords robo))
-                  in do bs <- loadBitmaps
-                        drawBitmap dc ((bs !! 0) !! (direction robo)) screencoords True []
-
-bitmaps = do roboimg <- bitmapCreateFromFile("./Robo.png")
-             return [roboimg]
+drawBot' dc vrobo sprites = do robo <- varGet vrobo
+                               let screencoords = (makeCoord  (rcoords robo))
+                                 in drawBitmap dc (sprites !! (direction robo)) screencoords True []
 
 drawGame vrobos dc viewArea 
   = do set dc [brushColor := black, brushKind := BrushSolid]
        tile <- bitmapCreateFromFile("./tile.png")
        mapM_ (\p -> drawBitmap dc tile p False []) coords
-       sequence_ (do vrobo <- vrobos
-                     return (do robo <- varGet vrobo
-                                drawBot dc robo))
+       sprites <- loadBitmaps
+       zipWithM_ (drawBot' dc) vrobos sprites 
