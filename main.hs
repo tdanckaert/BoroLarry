@@ -49,22 +49,20 @@ moveBot vrobo n = do robo <- varGet vrobo
                                           
 rotateBot vrobo n = do (Robot pos dir) <- varGet vrobo
                        varSet vrobo (Robot pos (rotate n dir))
-  {-| n > 0 = do (Robot pos dir) <- varGet vrobo
-                               varSet vrobo (Robot pos (rotateLeft dir))
-                  | n < 0 = do (Robot pos dir) <- varGet vrobo
-                               varSet vrobo (Robot pos (rotateRight dir)) -}
 
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
 
 game = do f <- frameFixed [text := "Boro Larry"]
 --          robo <- varCreate (Robot (4,5) 0)
           robos <- mapM (\p -> varCreate (Robot p 0)) startpos
-          p <- panel f [on paint := drawGame robos ]
+          sprites <- loadBitmaps
+          tile <- bitmapCreateFromFile( "./tile.png")
+          p <- panel f [on paint := drawGame robos sprites tile]
           set f [ layout := minsize (sz maxX maxY) $ widget p]
           set p [ on (charKey 'f') := (moveBot (robos !! 0) 1) >> repaint p
                 , on (charKey 'b') := (moveBot (robos !! 0) (-1)) >> repaint p
-                , on (charKey 'r') := (rotateBot (robos !! 0) 1) >> repaint p
-                , on (charKey 't') := (rotateBot (robos !! 0) (-1)) >> repaint p]
+                , on (charKey 't') := (rotateBot (robos !! 0) 1) >> repaint p
+                , on (charKey 'r') := (rotateBot (robos !! 0) (-1)) >> repaint p]
 
 -- From the names in 'robonames' generate a list of lists with their sprites:
 -- [ [spunky0.png,spunky1.png,...,spunky3.png], [bimbot0.png, ....]]
@@ -76,9 +74,7 @@ drawBot' dc vrobo sprites = do robo <- varGet vrobo
                                let screencoords = (makeCoord  (rcoords robo))
                                  in drawBitmap dc (sprites !! (direction robo)) screencoords True []
 
-drawGame vrobos dc viewArea 
+drawGame vrobos sprites tile dc viewArea
   = do set dc [brushColor := black, brushKind := BrushSolid]
-       tile <- bitmapCreateFromFile("./tile.png")
        mapM_ (\p -> drawBitmap dc tile p False []) coords
-       sprites <- loadBitmaps
        zipWithM_ (drawBot' dc) vrobos sprites 
