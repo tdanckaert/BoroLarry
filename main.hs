@@ -18,7 +18,6 @@ coords = [ (pt x y) | x <-[0,40..400], y<-[0,40..400]]
 
 main = start game
 
-
 -- Direction is represented as the numbers 0,1,2,3,
 -- which stand for N,E,S,W respectively
 rotateRight d = (d+1) `mod` 4
@@ -27,14 +26,9 @@ rotate n d = let makePos d' = if d' >= 0
                               then d'
                               else d' + 4
              in makePos $ (d + n ) `mod` 4
---instance Eq Direction 
---where (Direction a b = 
 
 data Robot = Robot { rcoords :: (Int,Int)
                    , direction :: Int}
-
--- Game state consists of list of robots and their positions.
-data Game = Game { bots :: Var [Robot] }
 
 robonames = ["spunky","bimbot","bimbot"]
 startpos = [(4,5), (7,8), (6,8)]
@@ -53,16 +47,27 @@ tryMove robos i n = let (Robot pos d) = robos !! i
                           | d == 2 = (x,y-n)
                           | d == 3 = (x-n,y)
                     in tryMove' robos i move
-
+                       
 tryMove' robos i move = let (Robot pos d) = robos !! i
                             target = move pos
                             robos' = (take i robos)
                                      ++ (Robot target d) : drop (1+i) robos
                         in case (roboAt target robos) of
                           Nothing -> robos'
-                          Just j -> tryMove' (tryMove' robos j move) i move
+                          Just j -> let robos'' = (tryMove' robos j move)
+                                    in case (roboAt target robos'') of
+                                      Nothing -> tryMove' robos'' i move
+                                      Just k -> robos''
+                                      
+data Programstep = Rotate Int Int Int -- robot number, steps, priority
+                 | Move Int Int Int -- robot number, steps, priority
+                   
+myProgram = [Move 0 3 800, Rotate 0 1 300, Move 0 2 650, Rotate 0 1 200, Move 0 1 250]
+                   
+execute (Move i n k) vrobos = moveBot vrobos i n
+execute (Rotate i n k) vrobos = rotateBot vrobos i n
                                     
-roboAt target robos = findIndex ( \(Robot pos d) -> pos == target) robos
+roboAt target = findIndex ( \(Robot pos d) -> pos == target)
                                           
 rotateBot vrobos i n = do robos <- varGet vrobos
                           let (Robot pos direction) = robos !! i
@@ -73,8 +78,8 @@ rotateBot vrobos i n = do robos <- varGet vrobos
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
 
 game = do f <- frameFixed [text := "Boro Larry"]
---          robo <- varCreate (Robot (4,5) 0)
           vrobos <- varCreate $ map (\p -> (Robot p 0)) startpos
+          vProgram <- varCreate myProgram
           sprites <- loadBitmaps
           tile <- bitmapCreateFromFile( "./tile.png")
           p <- panel f [on paint := drawGame vrobos sprites tile]
@@ -82,7 +87,14 @@ game = do f <- frameFixed [text := "Boro Larry"]
           set p [ on (charKey 'f') := (moveBot vrobos 0 1) >> repaint p
                 , on (charKey 'b') := (moveBot vrobos 0 (-1)) >> repaint p
                 , on (charKey 't') := (rotateBot vrobos 0 1) >> repaint p
-                , on (charKey 'r') := (rotateBot vrobos 0 (-1)) >> repaint p]
+                , on (charKey 'r') := (rotateBot vrobos 0 (-1)) >> repaint p
+                , on (charKey 'g') := (runProgram vProgram vrobos f p)]
+
+runProgram vProgram vrobos f p = do t <- timer f [interval := 1000, on command := stepProgram >> repaint p]
+                                    return ()
+                                    where stepProgram = do program <- varGet vProgram
+                                                           execute (program !! 0) vrobos
+                                                           varSet vProgram (tail program)
 
 -- From the names in 'robonames' generate a list of lists with their sprites:
 -- [ [spunky0.png,spunky1.png,...,spunky3.png], [bimbot0.png, ....]]
