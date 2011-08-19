@@ -6,13 +6,13 @@ import Control.Monad
 import Control.Concurrent.Thread.Delay
 import IO
 
-radius, maxX,maxY :: Int
+--radius, maxX,maxY :: Int
 maxX = 400
 maxY = 400
-radius = 10
+--radius = 10
 
-maxH:: Int
-maxH = maxY - radius
+--maxH:: Int
+--maxH = maxY - radius
 
 myRect = rectBetween (pt 10 10) (pt 30 30)
 
@@ -63,6 +63,14 @@ rotateBot i n robos = let (Robot pos direction) = robos !! i
                           robo' = (Robot pos (rotate n direction))
                       in (take i robos) ++ robo' : (drop (1+i) robos)
                    
+menuItems = [("move 1", moveBot 0 1)
+            ,("move 2", moveBot 0 2)
+            ,("move 3", moveBot 0 3)
+            ,("turn left", rotateBot 0 1)
+            ,("turn right", rotateBot 0 (-1))
+            ,("back up", moveBot 0 (-1))]
+            
+programSlots f =  mapM (\i-> (choice f  [items := map fst menuItems])) [1..5]
 
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
 
@@ -72,8 +80,12 @@ game = do f <- frameFixed [text := "Boro Larry"]
           sprites <- loadBitmaps
           tile <- bitmapCreateFromFile( "./tile.png")
           p <- panel f [on paint := drawGame vrobos sprites tile]
+          programit <- programSlots f
+          orderChoice <- choice f [items := map fst menuItems]
           movetimer <- timer f [interval := 500, enabled := False]
-          set f [ layout := minsize (sz maxX maxY) $ widget p]
+          set f [ layout :=  
+                  (column 5 [floatCentre $ minsize (sz maxX maxY) $ (widget p)
+                            ,floatCentre (row 3 (map widget programit)) ])]
           set p [ on (charKey 'f') := (varUpdate vrobos (moveBot 0 1)) >> repaint p
                 , on (charKey 'b') := (varUpdate vrobos (moveBot 0 (-1))) >> repaint p
                 , on (charKey 't') := (varUpdate vrobos (rotateBot 0 1)) >> repaint p
