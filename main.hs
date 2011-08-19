@@ -31,13 +31,17 @@ startpos = [(4,5), (7,8), (6,8)]
 moveBot: take the current list of Robots, and an order to move one of them,
 check if the target square is free, if not, try to move the robot in the target square as well, and then move
 -}
-moveBot i n robos = let (Robot pos d) = robos !! i
-                        move (x,y) -- translate robot movement order into a movement in a particular direction on the board
-                          | d == 0 = (x,y+n)
-                          | d == 1 = (x+n,y)
-                          | d == 2 = (x,y-n)
-                          | d == 3 = (x-n,y)
-                    in tryMove robos i move
+moveBot i n robos 
+    | abs(n) ==  1 = let (Robot pos d) = robos !! i
+                         move (x,y) -- translate robot movement order into a movement in a particular direction on the board
+                           | d == 0 = (x,y+n)
+                           | d == 1 = (x+n,y)
+                           | d == 2 = (x,y-n)
+                           | d == 3 = (x-n,y)
+                     in tryMove robos i move
+    | n > 1 = moveBot i (n-1) (moveBot i 1 robos)
+    | n <(-1) = moveBot i (n+1) (moveBot i (-1) robos) -- probably don't need this case
+
                        
 tryMove robos i move = let (Robot pos d) = robos !! i
                            target = move pos
