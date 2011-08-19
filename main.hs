@@ -2,19 +2,11 @@ import Graphics.UI.WX
 import Graphics.UI.WXCore.Image
 import Data.List
 import Control.Monad
---import System.Posix.Unistd
 import Control.Concurrent.Thread.Delay
 import IO
 
---radius, maxX,maxY :: Int
 maxX = 400
 maxY = 400
---radius = 10
-
---maxH:: Int
---maxH = maxY - radius
-
-myRect = rectBetween (pt 10 10) (pt 30 30)
 
 coords = [ (pt x y) | x <-[0,40..400], y<-[0,40..400]]
 
@@ -30,6 +22,7 @@ rotate n d = let makePos d' = if d' >= 0
 
 data Robot = Robot { rcoords :: (Int,Int)
                    , direction :: Int}
+
 
 robonames = ["spunky","bimbot","bimbot"]
 startpos = [(4,5), (7,8), (6,8)]
@@ -63,16 +56,21 @@ rotateBot i n robos = let (Robot pos direction) = robos !! i
                           robo' = (Robot pos (rotate n direction))
                       in (take i robos) ++ robo' : (drop (1+i) robos)
                    
-menuItems = [("move 1", moveBot 0 1)
-            ,("move 2", moveBot 0 2)
-            ,("move 3", moveBot 0 3)
-            ,("turn left", rotateBot 0 1)
-            ,("turn right", rotateBot 0 (-1))
-            ,("back up", moveBot 0 (-1))]
+programSteps = [("move 1", moveBot 0 1)
+               ,("move 2", moveBot 0 2)
+               ,("move 3", moveBot 0 3)
+               ,("turn left", rotateBot 0 (-1))
+               ,("turn right", rotateBot 0 1)
+               ,("back up", moveBot 0 (-1))]
             
-programSlots f =  mapM (\i-> (choice f  [items := map fst menuItems])) [1..5]
-
 makeCoord (x,y) = pt (x*40) (400 -(y*40))
+
+setProgram vProgram choices = let getProgram = mapM 
+                                               (\c -> (do s <- get c selection
+                                                          return (snd (programSteps !! s))))
+                                               choices
+                              in do p <- getProgram
+                                    varSet vProgram p
 
 game = do f <- frameFixed [text := "Boro Larry"]
           vrobos <- varCreate $ map (\p -> (Robot p 0)) startpos
@@ -80,12 +78,16 @@ game = do f <- frameFixed [text := "Boro Larry"]
           sprites <- loadBitmaps
           tile <- bitmapCreateFromFile( "./tile.png")
           p <- panel f [on paint := drawGame vrobos sprites tile]
-          programit <- programSlots f
-          orderChoice <- choice f [items := map fst menuItems]
+          programSlots <- replicateM 5 (choice f  [items := map fst programSteps])
+          someInt <- varCreate 1
           movetimer <- timer f [interval := 500, enabled := False]
+          goButton <- button f [text:= "Go!", on command:= 
+                                              do setProgram vProgram programSlots
+                                                 runProgram vProgram vrobos f p movetimer ]
           set f [ layout :=  
                   (column 5 [floatCentre $ minsize (sz maxX maxY) $ (widget p)
-                            ,floatCentre (row 3 (map widget programit)) ])]
+                            ,floatCentre (row 3 (map widget programSlots)) 
+                            ,alignLeft (widget goButton)])]
           set p [ on (charKey 'f') := (varUpdate vrobos (moveBot 0 1)) >> repaint p
                 , on (charKey 'b') := (varUpdate vrobos (moveBot 0 (-1))) >> repaint p
                 , on (charKey 't') := (varUpdate vrobos (rotateBot 0 1)) >> repaint p
@@ -116,10 +118,3 @@ runProgram vProgram vrobos f p t = set t [ on command := stepProgram t >> repain
                              then do varUpdate vrobos (program !! 0)
                                      varSet vProgram (tail program)
                              else set t [enabled :~ not]
-
-{-
-runProgram program vrobos p = let runStep vrobos step = do varUpdate vrobos step
-                                                           repaint p
-                                                           delay 500000
-                              in mapM_ (runStep vrobos) program
--}
