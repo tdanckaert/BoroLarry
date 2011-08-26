@@ -89,11 +89,14 @@ game = do f <- frameFixed [text := "Boro Larry"]
           tile <- bitmapCreateFromFile( "./tile.png")
           p <- panel f [on paint := drawGame vrobos sprites tile]
           programSlots <- replicateM (length robonames) 
-                          $ replicateM 5 (choice f  [items := map fst programSteps])
+                          $ replicateM 5 (choice f  
+                                          [items := map fst programSteps])
           movetimer <- timer f [interval := 500, enabled := False]
           goButton <- button f [text:= "Go!", on command:= 
-                                              do setProgram vProgram programSlots
-                                                 runProgram vProgram vrobos f p movetimer ]
+                                              runIfOk 
+                                              programSlots 
+                                              (setProgram vProgram programSlots
+                                               >> runProgram vProgram vrobos f p movetimer)]
           set f [ layout :=  
                   (column 5 [floatCentre $ minsize (sz maxX maxY) $ (widget p)
                             ,floatCentre $ programChooser programSlots
@@ -111,6 +114,19 @@ programChooser choices = column 3
                          (map 
                           ((row 3).(map widget))
                           $ choices )
+                         
+runIfOk programSlots action
+  = do ok <- checkProgram programSlots
+       if ok 
+         then action
+         else return ()
+-- checkProgram: pass the list of movement choices and see if choices
+-- have been made for all of them (check if any are still at -1)
+checkProgram programSlots
+  = let getSelections = mapM (\c -> get c selection)
+                        (concat programSlots)
+    in do sels <- getSelections
+          return $ not $ elem (-1) sels
 
 -- From the names in 'robonames' generate a list of lists with their sprites:
 -- [ [spunky0.png,spunky1.png,...,spunky3.png], [bimbot0.png, ....]]
@@ -118,8 +134,9 @@ loadBitmaps
   = sequence ( do roboname <- robonames
                   return ( mapM (\x -> bitmapCreateFromFile ( "./img/" ++ roboname ++ (show x) ++ ".png")) [0..3]))
     
-drawBot' dc robo sprites = let screencoords = (makeCoord  (rcoords robo))
-                           in drawBitmap dc (sprites !! (direction robo)) screencoords True []
+drawBot' dc robo sprites 
+  = let screencoords = (makeCoord  (rcoords robo))
+    in drawBitmap dc (sprites !! (direction robo)) screencoords True []
 
 drawGame vrobos sprites tile dc viewArea
   = do set dc [brushColor := black, brushKind := BrushSolid]
